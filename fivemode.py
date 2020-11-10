@@ -3,6 +3,7 @@ import sympy as sp
 from itertools import product
 import copy
 import math
+import cmath
 
 #User inputs
 
@@ -11,10 +12,10 @@ covariance0 = np.zeros((10,10))
 displacement0 = np.zeros(10)
 
 #This is a set of indices
-set0 = np.zeros(5)
+set0 = np.zeros((5,), dtype=int)
 
 #This is the set of p_i
-numbers0 = np.zeros(5)
+numbers0 = [1,1,1,1,1]
 
 ########################################
 
@@ -30,25 +31,34 @@ def kappa_new(covariance, displacement, set, numbers):
         displacement: displacement vector
         set: list of modes to be considered
         numbers: list of p_i values
+        Outputs:
+        kappa_geq_1: the kappa matrix with only the modes we are interested in, repeated an appropriate number of times
+        according to the value of the p_i for that mode
+        sigma_q: the sigma_q matrix as defined in the notes
     '''
 
     sigma_s = np.zeros((2*len(set),2*len(set)))
 
-    for i,j in set:
-        sigma_s[i][j] = covariance[i][j]
-        sigma_s[2*i][2*j] = covariance[2*i][2*j]
-    
     #This is the covariance matrix but with only the modes we are interested in
-    
-#Is this right??
+
+    for i in set:
+        for j in set:
+            sigma_s[i][j] = covariance[i][j]
+            sigma_s[int(len(covariance)/2)+i][int(len(covariance)/2)+j] = covariance[int(len(covariance)/2)+i][int(len(covariance)/2)+j]
+            sigma_s[i][int(len(covariance)/2)+j] = covariance[i][int(len(covariance)/2)+j]
+            sigma_s[int(len(covariance)/2)+i][j] = covariance[int(len(covariance)/2)+i][j]
+
+    #Next step is to make further matrices as defined in the notes
 
     sigma_q = sigma_s + np.identity(2*len(set))
 
-    kappa_s = np.matmul(sp.TensorProduct(x_matrix, np.identity(len(set))),(np.identity(2*len(set)))-sigma_q)
-    
-    kappa_s_geq_1 = np.zeros((2*np.sum(numbers),2*np.sum(numbers)))
-    
+    kappa_s = np.matmul(np.kron(x_matrix, np.identity(len(set))),(np.identity(2*len(set)))-2*np.linalg.inv(sigma_q))
+
+    #In agreement with doing it by hand up until this point.
+
     #All this next bit is how we repeat modes as is necessary based on the p_i values
+
+    kappa_s_geq_1 = np.zeros((2*np.sum(numbers),2*np.sum(numbers)))
 
     position = 0
     position_temp = 0
@@ -64,41 +74,23 @@ def kappa_new(covariance, displacement, set, numbers):
         position_temp = 0
         position += numbers2[i]
 
-    return kappa_s_geq_1
+    return kappa_s_geq_1, sigma_q
             
 
 def Hafnian(kappa_matrix):
 
-    hafnian = 0 #placeholder
+    '''This function returns the Hafnian (float) of a given input matrix (square array).'''
 
-    #The set size is the number of modes we are interested in. If this is S, the size of kappa_matrix should be 2S x 2S
-    set_size = len(kappa_matrix)
+    hafnian = 0 #placeholder
 
     #Probably worth writing in a check that the input is a square matrix and the size is even.
 
     #First thing we should do is make a list of vectors that represent the different perfectly matching permutations.
-
-    indices = list(range(set_size))
-    def make_pair(indices):
-        
-        all_mus = []
-        mu = []
-        if len(indices)>0:
-            mu.append(indices[0])
-            indices.pop(0)
-            for i in range(len(indices)):
-                mu.append(indices[i])
-                indices.pop(i)
-                make_pair(indices, full_list)
-        else:
-            all_mus.append(mu)
-        
-        return all_mus
-
-
+    #Note that this doesn't seem to work with N = 2. Will need to check this.
     def rec_loop(indices, N, tempmu, allmus):
-
         if len(tempmu) == N:
+            #We have assigned a whole vector. Now we need to add this to our list of vectors, and then reduce our current list
+            #appropriately so that we can continue with the algorithm.
             allmus.append(copy.deepcopy(tempmu))
             tempmu.pop(-1)
             tempmu.pop(-1)
@@ -115,191 +107,66 @@ def Hafnian(kappa_matrix):
 
         elif len(tempmu) <N:
             newlist = [index for index in indices if index not in tempmu]
+            #The list of indices not yet assigned.
             tempmu.append(newlist[0])
+            #Add the first one to our current vector (tempmu).
             for i in range(1,len(newlist)):
+                #Now we cycle through the remaining indices. This is how we find all possible pairs.
                 tempmu.append(copy.deepcopy(newlist[i]))
+                #Once this pair has been assigned, we repeat the method with the remaining indices.
                 allmus = rec_loop(indices, N, tempmu, allmus)
         else:
+            #This shouldn't happen! But it happened several times when developing this bit of code so I've left this clause here
+            #just in case.
             raise ValueError
 
         return allmus
 
     def makepair(N):
+        '''For the input of a positive even integer N, the output allmus is a list of all the perfectly matching
+        pairings of the list of indices 0 to N-1.'''
         listofmodes = list(range(N))
+        #We call the recursive function rec_loop.
         allmus = rec_loop(listofmodes, N, [], [])
         return allmus
 
+    set_M = makepair(len(kappa_matrix))
+    for mu in set_M:
+        pairing = 1
+        for k in range(int(len(kappa_matrix)/2)):
+            pairing *= kappa_matrix[mu[2*(k+1) -2]][mu[2*(k+1)-1]]
+        hafnian += pairing
 
     return hafnian
         
 
-# def rec_loop(indices, N, tempmu, allmus):
+def click_probability(covariance, displacement, set, numbers):
+    '''This is going to give us the probability of seeing a particular pattern of photon numbers (this is the list of integers 'numbers')
+    over a particular set of modes (this is the list of integers 'set') with the input covariance matrix (must be size 2N x 2N) and
+    displacement vector.'''
 
-#     if len(tempmu) == N:
-#         allmus.append(copy.deepcopy(tempmu))
-#         tempmu.pop(-1)
-#         tempmu.pop(-1)
-#         tempmu.pop(-1)
-#         for i in range(int(N/2)-1):
-#             if len(allmus) == sp.factorial2(N - 1):
-#                 break
-#             elif len(allmus) % sp.factorial2(N - 2*i - 1) == 0:
-#                 for j in range(N - 2*i -2):
-#                     tempmu.pop(-1)
-#                 break
-#             else:
-#                 pass
+    kappa_s_geq_1, sigma_q = kappa_new(covariance, displacement, set, numbers)
 
-#     elif len(tempmu) <N:
-#         newlist = [index for index in indices if index not in tempmu]
-#         tempmu.append(newlist[0])
-#         for i in range(1,len(newlist)):
-#             tempmu.append(copy.deepcopy(newlist[i]))
-#             allmus = rec_loop(indices, N, tempmu, allmus)
-#     else:
-#         raise ValueError
-#     return allmus
-################################## previous attempts :( :( ###################################################################
+    hafnian = Hafnian(kappa_s_geq_1)
+    N = 1
+    for p_i in numbers:
+        N *= 1/math.factorial(p_i)
 
-# def make_pair(set_size):
-#     all_mus = []
-#     temp_mu = []
-#     indices = list(range(set_size))
-#     j = 0
-#     def loop_rec(all_mus, temp_mu, indices, j):
-#         if len(indices)-j>0:
-#             temp_mu.append(indices[j])
-#             #indices.pop(0)
-#             print('here')
-#             for i in range(j+1, len(indices)):
-#                 print(temp_mu)
-#                 temp_mu.append(indices[i])
-#                 #indices.pop(i)
-#                 print(temp_mu)
-#                 #print(len(indices))
-#                 #print(indices)
-#                 loop_rec(all_mus, temp_mu, indices, i+1)
-#         else:
-#             all_mus.append(temp_mu)
-#             temp_mu = []
-#             print(all_mus)
-#             print(indices)
-    
-#     all_mus = loop_rec(all_mus, temp_mu, indices, j)
-#     return all_mus
+    probability = ((2**len(set))*N/np.sqrt(np.linalg.det(sigma_q)))*hafnian
+    return probability
 
-# def make_pair(set_size):
-#     all_mus = []
-#     temp_mu = []
-#     indices = list(range(set_size))
-#     j = 0
-#     def loop_rec(all_mus, temp_mu, j):
-#         if j<set_size-1:
-#             print(j)
-#             temp_mu.append(indices[j])
-#             print('here')
-#             while j<set_size-1:
-#                 print(j)
-#                 print(temp_mu)
-#                 temp_mu.append(indices[j+1])
-#                 print(temp_mu)
-#                 loop_rec(all_mus, temp_mu, j+2)
-#         else:
-#             all_mus.append(temp_mu)
-#             temp_mu = []
-#             print(all_mus)
-#             j += -2
-#             print(j)
-#             print(temp_mu)
-    
-#     all_mus = loop_rec(all_mus, temp_mu, j)
-#     return all_mus
 
-#indices = list(range(6))
-    
-#going to save tempmus in a dictionary so can go back through these. not necessary for newlist?
+c2 = 3.7622
+s2 = 3.6269
 
-# newlist = {}
-# tempmus = {}
-# marker = 0
-# temp_mu = 0
+covariance1 = [[c2, 0, 0,s2],[0,c2,s2,0],[0,s2,c2,0],[s2,0,0,c2]]
+set1 = [0,1]
+numbers1 = [2,2]
 
-# def loop_rec(indices, all_mus):
-#     global temp_mu
-#     global newlist
-#     global marker
-#     global tempmus
-#     x = 0
-#     marker += 1
-#     #newlist = [index for index in indices if index not in temp_mu]
-#     print(newlist)
-#     if len(temp_mu)<len(indices):
-#         x += 1
-#         newlist["marker"] = [index for index in indices if index not in temp_mu]
-#         #newlist = [index for index in indices if index not in temp_mu]
-#         print(newlist)
-#         temp_mu.append(newlist[0])
-#         for i in range(1, len(newlist)):
-#             temp_mu.append(newlist[i])
-#             print(temp_mu)
-#             loop_rec(indices, all_mus)
-#     else:
-#         all_mus.append(temp_mu)
-#         #newlist.append(temp_mu[-1])
-#         #newlist.append(temp_mu[-2])
-#         print(all_mus)
-#         temp_mu = []
+print(click_probability(covariance1, displacement0, set1, numbers1))
 
-# # def make_pair(N):
-# #     all_mus = []
-# #     temp_mu = []
-# #     indices = list(range(N))
-# #     #temp_mu.append(indices[0])
-# #     newlist = [index for index in indices if index not in temp_mu]
-# #     for index in newlist:
-# #         temp_mu.append(index)
-# #         print temp_mu
-# #         newnewlist = [index for index in indices if index not in temp_mu]
-# #         for index2 in newnewlist:
-# #             temp_mu.append(index2)
-# #             print temp_mu
-# #             all_mus.append(temp_mu)
-# #         temp_mu = []
-# #     return all_mus
+#Main issues
+#2. currently only accepts real numbers - could change it for complex numbers or symbols
+#3. I've taken the displacement vector as an input but it doesn't actually use it
 
-# def make_pair(N):
-#     all_mus = []
-#     indices = list(range(N))
-#     loop_rec(indices, all_mus)
-#     #newlist = []
-#     return all_mus
-
-# check = make_pair(6)
-# print(check)
-
-########################################################Old code used for testing#################################################
-#numbers = [3,1]
-
-#numbers2 = list(numbers)
-#numbers2.extend(numbers)
-
-#kappa_s_geq_1 = np.zeros((2*np.sum(numbers),2*np.sum(numbers)))
-
-#kappa_s = [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]
-
-#position = 0
-#position_temp = 0
-    
-#for i in range(len(numbers2)):
- #   for j in range(len(numbers2)):
-       # position_temp = position
- #       for k,l in product(range(numbers2[i]),range(numbers2[j])):
-  #          kappa_s_geq_1[position+k][position_temp+l] = kappa_s[i][j]
-            #kappa_s_geq_1[sum(numbers)+position+i][sum(numbers)+position_temp+j] = kappa_s[len(numbers)+i][len(numbers)+j]
-            #print(kappa_s_geq_1)
-#        position_temp += numbers2[j]
- #   position_temp = 0
- #   position += numbers2[i]
-
-#print(kappa_s)
-#print(kappa_s_geq_1)
+#########################################Here's some states to use as examples#############################################
