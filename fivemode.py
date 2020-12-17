@@ -1,5 +1,6 @@
 import numpy as np
 import sympy as sp
+#import scipy as scp
 from itertools import product
 import copy
 import math
@@ -56,8 +57,6 @@ def kappa_new(covariance, displacement, set, numbers):
 
     kappa_s = np.matmul(np.kron(x_matrix, np.identity(len(set))),(np.identity(2*len(set)))-2*np.linalg.inv(sigma_q))
 
-    #In agreement with doing it by hand up until this point.
-
     #All this next bit is how we repeat modes as is necessary based on the p_i values
 
     kappa_s_geq_1 = np.zeros((2*np.sum(numbers),2*np.sum(numbers)), dtype=np.complex_)
@@ -79,19 +78,16 @@ def kappa_new(covariance, displacement, set, numbers):
     return kappa_s_geq_1, sigma_q
             
 
-def Hafnian(kappa_matrix):
+def Hafnian(kappa_matrix, sigma_q):
 
     '''This function returns the Hafnian (float) of a given input matrix (square array).'''
-
-    hafnian = 0 #placeholder
-    print('k mat')
-    print(kappa_matrix)
-
+    if len(kappa_matrix) == 0:
+        hafnian = 1
+    else:
+        hafnian = 0
     #Probably worth writing in a check that the input is a square matrix and the size is even.
-
     #First thing we should do is make a list of vectors that represent the different perfectly matching permutations.
-    #Note that this doesn't seem to work with N = 2. Will need to check this.
-    def rec_loop(indices, N, tempmu, allmus):
+    def rec_loop(indices, N, tempmu, allmus):    
         if len(tempmu) == N:
             #We have assigned a whole vector. Now we need to add this to our list of vectors, and then reduce our current list
             #appropriately so that we can continue with the algorithm.
@@ -129,12 +125,20 @@ def Hafnian(kappa_matrix):
     def makepair(N):
         '''For the input of a positive even integer N, the output allmus is a list of all the perfectly matching
         pairings of the list of indices 0 to N-1.'''
-        listofmodes = list(range(N))
+        #Note that this seems to be by far the slowest bit of the code! It also took the longest to write.
+        #It is clearly an inefficient method of finding the PMPs. Needs work!
+        if N == 0:
+            allmus = []
+        elif N == 2:
+            allmus = [[0,1]]
+        else:
+            listofmodes = list(range(N))
         #We call the recursive function rec_loop.
-        allmus = rec_loop(listofmodes, N, [], [])
+            allmus = rec_loop(listofmodes, N, [], [])
         return allmus
-
+    print('before')
     set_M = makepair(len(kappa_matrix))
+    print('after')
     for mu in set_M:
         pairing = 1
         for k in range(int(len(kappa_matrix)/2)):
@@ -148,18 +152,15 @@ def click_probability(covariance, displacement, set, numbers):
     '''This is going to give us the probability of seeing a particular pattern of photon numbers (this is the list of integers 'numbers')
     over a particular set of modes (this is the list of integers 'set') with the input covariance matrix (must be size 2N x 2N) and
     displacement vector.'''
-    if sum(numbers) < 0:
-        print('Need to work on this case.')
-        probability = 0
-    else:
-        kappa_s_geq_1, sigma_q = kappa_new(covariance, displacement, set, numbers)
 
-        hafnian = Hafnian(kappa_s_geq_1)
-        N = 1
-        for p_i in numbers:
-            N *= 1/math.factorial(p_i)
+    kappa_s_geq_1, sigma_q = kappa_new(covariance, displacement, set, numbers)
 
-        probability = ((2**len(set))*N/np.sqrt(np.linalg.det(sigma_q)))*hafnian
+    hafnian = Hafnian(kappa_s_geq_1, sigma_q)
+    N = 1
+    for p_i in numbers:
+        N *= 1/math.factorial(p_i)
+
+    probability = ((2**len(set))*N/np.sqrt(np.linalg.det(sigma_q)))*hafnian
     return probability
 
 #########################################Here's some examples#############################################
@@ -169,45 +170,97 @@ def covariance_2mode_squeezed(r, phi):
     s2 = np.sinh(2*r)
     return [[c2, 0, 0,cmath.rect(s2, phi)],[0,c2,cmath.rect(s2, phi),0],[0,cmath.rect(s2, -phi),c2,0],[cmath.rect(s2, -phi),0,0,c2]]
 
-set1 = [0,1]
-numbers1 = [1,1]
-covariance1 = covariance_2mode_squeezed(1, math.pi/6)
+#set1 = [0,1]
+#numbers1 = [1,1]
+#covariance1 = covariance_2mode_squeezed(1, math.pi/6)
 
 #print(click_probability(covariance1, displacement0, set1, numbers1))
 
+#This is my previous method for generating a random covariance matrix.
+
+#random_A = np.random.rand(5,5) #This is a method from wikipedia for constructing random symplectic matrices
+#C_matrix = np.linalg.inv(random_A.transpose())
+#D_matrix = np.zeros((10,10))
+#D_matrix[:random_A.shape[0],:random_A.shape[1]]=random_A #I took this from stackexchange because there doesn't seem to be a method for direct sum in numpy?
+#D_matrix[random_A.shape[0]:,random_A.shape[1]:]=C_matrix #I'm sure I could have worked it out by itself
+#random_B = np.random.rand(5,5)
+#B_matrix = (random_B + random_B.transpose())/2 #Same here but for symmetrix matrices
+#N_matrix = np.identity(10) + np.kron([[0,1],[0,0]], B_matrix)
+#Omega_matrix = np.zeros((10,10)) + np.kron([[0,1],[0,0]], np.identity(5)) + np.kron([[0,0],[-1,0]], np.identity(5))
+#rand4 = rand.randint(0,3)
+#random_symp = np.matmul(np.matmul(np.linalg.matrix_power(Omega_matrix,rand4), D_matrix), N_matrix)
+#random_cov = np.matmul(random_symp, random_symp.transpose())
+#print(random_cov)
+
+#def random_covariance(N, r, D):
+#    '''Produce 2Nx2N covariance matrix.'''
+
+def random_unitary(n):
+    '''This method for generating an nxn Haar random unitary matrix is taken from
+    a paper by Francesco Mezzadri, who kindly includes some example code.'''
+    z = (np.random.randn(n,n) + 1j*np.random.randn(n,n))/np.sqrt(2.0)
+    q,r = np.linalg.qr(z)
+    d = np.diagonal(r)
+    ph = d/np.abs(d)
+    q = np.multiply(q,ph,q)
+    return q
+
+def covariance_matrix(unitary1, unitary2, r, mu):
+    '''This is a method taken from Oli, Will and Dara's multimode paper.'''
+    #That docstring needs work.
+    u = unitary1
+    print('u=',u)
+    uconj = np.conjugate(u.transpose()) 
+    v = unitary2
+    print('v=',v)
+    U = np.zeros((2*len(u), 2*len(u)), dtype=np.complex_)
+    V = np.zeros((2*len(v), 2*len(v)), dtype=np.complex_)
+    vconj = np.conjugate(v.transpose())
+    U[:u.shape[0],:u.shape[1]]=u
+    U[u.shape[0]:,u.shape[1]:]=uconj
+    V[:v.shape[0],:v.shape[1]]=v
+    V[v.shape[0]:,v.shape[1]:]=vconj
+#    print('U=',U)
+#    print('V=',V)
+    MD = np.zeros((2*len(r), 2*len(r)), dtype=np.complex_)
+    for i in range(len(r)): #This probably doesn't need to be a for loop, you can use np.diag
+        MD[i][i] = np.cosh(r[i])
+        MD[i+len(r)][i] = np.sinh(r[i])
+        MD[i][i+len(r)] = np.conjugate(np.sinh(r[i]))
+        MD[i+len(r)][i+len(r)] = np.conjugate(np.cosh(r[i]))
+#    print('MD=',MD)
+    T = np.kron(np.identity(2), np.diag(mu))
+#    print('T=',T)
+    M_matrix = np.matmul(U, np.matmul(MD, V))
+    M_conj = np.conjugate(M_matrix.transpose())
+    sigma = np.matmul(M_matrix, np.matmul(T, M_conj))
+    print('sigma=',sigma)
+    return sigma
+
 #########################################################################################################
 
-#Next step, we are going to try and make some plots with random covariance matrices.
+unitary1 = random_unitary(5)
+unitary2 = random_unitary(5)
+r = [0.5,0.5,0.5,0.5,0.5] #squeezing - would no squeezing be 0?
+mu = [1,1,1,1,1] #pure state
 
-#random_symp = ensembles.Circular().gen_cse(N=5)
-#print(random_symp)
-
-random_A = np.random.rand(5,5) #This is a method from wikipedia for constructing random symplectic matrices
-C_matrix = np.linalg.inv(random_A.transpose())
-D_matrix = np.zeros((10,10))
-D_matrix[:random_A.shape[0],:random_A.shape[1]]=random_A #I took this from stackexchange because there doesn't seem to be a method for direct sum in numpy?
-D_matrix[random_A.shape[0]:,random_A.shape[1]:]=C_matrix #I'm sure I could have worked it out by itself
-random_B = np.random.rand(5,5)
-B_matrix = (random_B + random_B.transpose())/2 #Same here but for symmetrix matrices
-N_matrix = np.identity(10) + np.kron([[0,1],[0,0]], B_matrix)
-Omega_matrix = np.zeros((10,10)) + np.kron([[0,1],[0,0]], np.identity(5)) + np.kron([[0,0],[-1,0]], np.identity(5))
-rand4 = rand.randint(0,3)
-random_symp = np.matmul(np.matmul(np.linalg.matrix_power(Omega_matrix,rand4), D_matrix), N_matrix)
-random_cov = np.matmul(random_symp, random_symp.transpose())
-print(random_cov)
+random_cov = covariance_matrix(unitary1, unitary2, r, mu)
 
 list_of_sets = list(product(list(range(3)),repeat=5))
 sumofprobs = 0
 probabilities = []
-#for i in range(len(list_of_sets)):
-#    print(list_of_sets[i])
-#    sumofprobs += click_probability(random_cov, np.zeros(10), [0,1,2,3,4], list_of_sets[i])
-#    print(click_probability(random_cov, np.zeros(10), [0,1,2,3,4], list_of_sets[i]))
-#    probabilities.append(click_probability(random_cov, np.zeros(10), [0,1,2,3,4], list_of_sets[i]))
-#print(sumofprobs)
-print(click_probability(random_cov, np.zeros(10), [0,1,2,3,4], [0,0,0,0,0]))
-#plt.bar(list(range(len(list_of_sets))), np.real(probabilities))
-#plt.show()
+for i in range(len(list_of_sets)):
+    print(list_of_sets[i])
+    prob = click_probability(random_cov, np.zeros(10), [0,1,2,3,4], list_of_sets[i])
+    sumofprobs += prob
+    print(prob)
+    probabilities.append(prob)
+print(sumofprobs)
+#print(click_probability(random_cov, np.zeros(10), [0,1,2,3,4], [0,0,0,0,0]))
+fig = plt.bar(list(range(len(list_of_sets))), np.real(probabilities))
+plt.xlabel('Click pattern')
+plt.ylabel('Probability')
+plt.show()
 
 ################################TO DO LIST##############################################################
 
