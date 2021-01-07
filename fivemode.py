@@ -44,12 +44,12 @@ def kappa_new(covariance, displacement, set, numbers):
 
     #This is the covariance matrix but with only the modes we are interested in
 
-    for i in set:
-        for j in set:
-            sigma_s[i][j] = covariance[i][j]
-            sigma_s[int(len(covariance)/2)+i][int(len(covariance)/2)+j] = covariance[int(len(covariance)/2)+i][int(len(covariance)/2)+j]
-            sigma_s[i][int(len(covariance)/2)+j] = covariance[i][int(len(covariance)/2)+j]
-            sigma_s[int(len(covariance)/2)+i][j] = covariance[int(len(covariance)/2)+i][j]
+    for i in range(len(set)):
+        for j in range(len(set)):
+            sigma_s[i][j] = covariance[set[i]][set[j]]
+            sigma_s[int(len(set))+i][int(len(set))+j] = covariance[int(len(covariance)/2)+set[i]][int(len(covariance)/2)+set[j]]
+            sigma_s[i][int(len(set))+j] = covariance[set[i]][int(len(covariance)/2)+set[j]]
+            sigma_s[int(len(set))+i][j] = covariance[int(len(covariance)/2)+set[i]][set[j]]
 
     #Next step is to make further matrices as defined in the notes
 
@@ -87,8 +87,9 @@ def Hafnian(kappa_matrix, sigma_q):
         hafnian = 0
     #Probably worth writing in a check that the input is a square matrix and the size is even.
     #First thing we should do is make a list of vectors that represent the different perfectly matching permutations.
-    def rec_loop(indices, N, tempmu, allmus):    
+    def rec_loop(indices, N, tempmu, allmus, endsize):    
         if len(tempmu) == N:
+            #print(tempmu)
             #We have assigned a whole vector. Now we need to add this to our list of vectors, and then reduce our current list
             #appropriately so that we can continue with the algorithm.
             allmus.append(copy.deepcopy(tempmu))
@@ -96,7 +97,7 @@ def Hafnian(kappa_matrix, sigma_q):
             tempmu.pop(-1)
             tempmu.pop(-1)
             for i in range(int(N/2)-1):
-                if len(allmus) == sp.factorial2(N - 1):
+                if len(allmus) == endsize:
                     break
                 elif len(allmus) % sp.factorial2(N - 2*i - 1) == 0:
                     for j in range(N - 2*i -2):
@@ -114,7 +115,7 @@ def Hafnian(kappa_matrix, sigma_q):
                 #Now we cycle through the remaining indices. This is how we find all possible pairs.
                 tempmu.append(copy.deepcopy(newlist[i]))
                 #Once this pair has been assigned, we repeat the method with the remaining indices.
-                allmus = rec_loop(indices, N, tempmu, allmus)
+                allmus = rec_loop(indices, N, tempmu, allmus, endsize)
         else:
             #This shouldn't happen! But it happened several times when developing this bit of code so I've left this clause here
             #just in case.
@@ -132,9 +133,10 @@ def Hafnian(kappa_matrix, sigma_q):
         elif N == 2:
             allmus = [[0,1]]
         else:
+            endsize = sp.factorial2(N - 1)
             listofmodes = list(range(N))
         #We call the recursive function rec_loop.
-            allmus = rec_loop(listofmodes, N, [], [])
+            allmus = rec_loop(listofmodes, N, [], [], endsize)
         return allmus
     print('before')
     set_M = makepair(len(kappa_matrix))
@@ -163,7 +165,7 @@ def click_probability(covariance, displacement, set, numbers):
     probability = ((2**len(set))*N/np.sqrt(np.linalg.det(sigma_q)))*hafnian
     return probability
 
-#########################################Here's some examples#############################################
+#########################################For producing covariance matrices#############################################
 
 def covariance_2mode_squeezed(r, phi):
     c2 = np.cosh(2*r)
@@ -175,6 +177,88 @@ def covariance_2mode_squeezed(r, phi):
 #covariance1 = covariance_2mode_squeezed(1, math.pi/6)
 
 #print(click_probability(covariance1, displacement0, set1, numbers1))
+
+
+def random_unitary(n):
+    '''This method for generating an nxn Haar random unitary matrix is taken from
+    a paper by Francesco Mezzadri, who kindly includes some example code.'''
+    z = (np.random.randn(n,n) + 1j*np.random.randn(n,n))/np.sqrt(2.0)
+    q,r = np.linalg.qr(z)
+    d = np.diagonal(r)
+    ph = d/np.abs(d)
+    q = np.multiply(q,ph,q)
+    return q
+
+def covariance_matrix(unitary1, unitary2, r, mu):
+    '''This is the Bloch-Messiah decomp method taken from Oli, Will and Dara's multimode paper.'''
+    #That docstring needs work.
+    u = unitary1
+#    print('u=',u)
+    uconj = np.conjugate(u.transpose()) 
+    v = unitary2
+#    print('v=',v)
+    U = np.zeros((2*len(u), 2*len(u)), dtype=np.complex_)
+    V = np.zeros((2*len(v), 2*len(v)), dtype=np.complex_)
+    vconj = np.conjugate(v.transpose())
+    U[:u.shape[0],:u.shape[1]]=u
+    U[u.shape[0]:,u.shape[1]:]=uconj
+    V[:v.shape[0],:v.shape[1]]=v
+    V[v.shape[0]:,v.shape[1]:]=vconj
+#    print('U=',U)
+#    print('V=',V)
+    MD = np.zeros((2*len(r), 2*len(r)), dtype=np.complex_)
+    cmat = np.diag(np.cosh(r))
+    smat = np.diag(np.sinh(r))
+    cmatconj = np.conjugate(cmat.transpose())
+    smatconj = np.conjugate(smat.transpose())
+    MD[:cmat.shape[0],:cmat.shape[1]]=cmat
+    MD[smat.shape[0]:,:smat.shape[1]]=smat
+    MD[cmatconj.shape[0]:,cmatconj.shape[1]:]=cmatconj
+    MD[:smatconj.shape[0],smatconj.shape[1]:]=smatconj 
+#    print('MD=',MD)
+    T = np.kron(np.identity(2), np.diag(mu))
+#    print('T=',T)
+    M_matrix = np.matmul(U, np.matmul(MD, V))
+    M_conj = np.conjugate(M_matrix.transpose())
+    sigma = np.matmul(M_matrix, np.matmul(T, M_conj))
+    print('sigma=',sigma)
+    return sigma
+
+#########################################################################################################
+
+numberofmodes = 5
+#The way this is set up currently produces a random 5-mode covariance.
+
+unitary1 = random_unitary(numberofmodes)
+unitary2 = random_unitary(numberofmodes)
+r = [0.5,0.5,0.5,0.5,0.5] #squeezing - would no squeezing be 0?
+mu = [1,1,1,1,1] #pure state
+
+random_cov = covariance_matrix(unitary1, unitary2, r, mu)
+
+np.set_printoptions(precision=3)
+#print(random_cov - np.conjugate(random_cov.transpose()))
+
+Omega = np.kron(np.identity(numberofmodes), [[0,1],[-1,0]])
+
+list_of_sets = list(product(list(range(2)),repeat=numberofmodes)) #It currently checks for 0,1 photons.
+#You could change this by changing range(x) in the line above.
+sumofprobs = 0
+probabilities = []
+for i in range(len(list_of_sets)):
+    print(list_of_sets[i])
+    prob = click_probability(random_cov, np.zeros(2*numberofmodes), [0,1,2,3,4], list_of_sets[i])
+    sumofprobs += prob
+    print(prob)
+    probabilities.append(prob)
+print(sumofprobs)
+#print(click_probability(random_cov, np.zeros(10), [0,1,2,3,4], [0,0,0,0,0]))
+fig = plt.bar(list(range(len(list_of_sets))), np.real(probabilities))
+plt.axhline(linewidth=0.5, color='gray')
+plt.xlabel('Click pattern')
+plt.ylabel('Probability')
+plt.show()
+
 
 #This is my previous method for generating a random covariance matrix.
 
@@ -192,78 +276,8 @@ def covariance_2mode_squeezed(r, phi):
 #random_cov = np.matmul(random_symp, random_symp.transpose())
 #print(random_cov)
 
-#def random_covariance(N, r, D):
-#    '''Produce 2Nx2N covariance matrix.'''
-
-def random_unitary(n):
-    '''This method for generating an nxn Haar random unitary matrix is taken from
-    a paper by Francesco Mezzadri, who kindly includes some example code.'''
-    z = (np.random.randn(n,n) + 1j*np.random.randn(n,n))/np.sqrt(2.0)
-    q,r = np.linalg.qr(z)
-    d = np.diagonal(r)
-    ph = d/np.abs(d)
-    q = np.multiply(q,ph,q)
-    return q
-
-def covariance_matrix(unitary1, unitary2, r, mu):
-    '''This is a method taken from Oli, Will and Dara's multimode paper.'''
-    #That docstring needs work.
-    u = unitary1
-    print('u=',u)
-    uconj = np.conjugate(u.transpose()) 
-    v = unitary2
-    print('v=',v)
-    U = np.zeros((2*len(u), 2*len(u)), dtype=np.complex_)
-    V = np.zeros((2*len(v), 2*len(v)), dtype=np.complex_)
-    vconj = np.conjugate(v.transpose())
-    U[:u.shape[0],:u.shape[1]]=u
-    U[u.shape[0]:,u.shape[1]:]=uconj
-    V[:v.shape[0],:v.shape[1]]=v
-    V[v.shape[0]:,v.shape[1]:]=vconj
-#    print('U=',U)
-#    print('V=',V)
-    MD = np.zeros((2*len(r), 2*len(r)), dtype=np.complex_)
-    for i in range(len(r)): #This probably doesn't need to be a for loop, you can use np.diag
-        MD[i][i] = np.cosh(r[i])
-        MD[i+len(r)][i] = np.sinh(r[i])
-        MD[i][i+len(r)] = np.conjugate(np.sinh(r[i]))
-        MD[i+len(r)][i+len(r)] = np.conjugate(np.cosh(r[i]))
-#    print('MD=',MD)
-    T = np.kron(np.identity(2), np.diag(mu))
-#    print('T=',T)
-    M_matrix = np.matmul(U, np.matmul(MD, V))
-    M_conj = np.conjugate(M_matrix.transpose())
-    sigma = np.matmul(M_matrix, np.matmul(T, M_conj))
-    print('sigma=',sigma)
-    return sigma
-
-#########################################################################################################
-
-unitary1 = random_unitary(5)
-unitary2 = random_unitary(5)
-r = [0.5,0.5,0.5,0.5,0.5] #squeezing - would no squeezing be 0?
-mu = [1,1,1,1,1] #pure state
-
-random_cov = covariance_matrix(unitary1, unitary2, r, mu)
-
-list_of_sets = list(product(list(range(3)),repeat=5))
-sumofprobs = 0
-probabilities = []
-for i in range(len(list_of_sets)):
-    print(list_of_sets[i])
-    prob = click_probability(random_cov, np.zeros(10), [0,1,2,3,4], list_of_sets[i])
-    sumofprobs += prob
-    print(prob)
-    probabilities.append(prob)
-print(sumofprobs)
-#print(click_probability(random_cov, np.zeros(10), [0,1,2,3,4], [0,0,0,0,0]))
-fig = plt.bar(list(range(len(list_of_sets))), np.real(probabilities))
-plt.xlabel('Click pattern')
-plt.ylabel('Probability')
-plt.show()
 
 ################################TO DO LIST##############################################################
 
-#I need to double check this works when not all modes are selected.
 #It would be good to check that everything is input correctly.
 #Maybe compare this to the Xanadu method?
