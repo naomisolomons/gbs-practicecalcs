@@ -54,6 +54,7 @@ def kappa_new(covariance, displacement, set, numbers):
     #Next step is to make further matrices as defined in the notes
 
     sigma_q = sigma_s + np.identity(2*len(set))
+    print(np.linalg.det(sigma_q))
 
     kappa_s = np.matmul(np.kron(x_matrix, np.identity(len(set))),(np.identity(2*len(set)))-2*np.linalg.inv(sigma_q))
 
@@ -193,19 +194,19 @@ def covariance_matrix(unitary1, unitary2, r, mu):
     '''This is the Bloch-Messiah decomp method taken from Oli, Will and Dara's multimode paper.'''
     #That docstring needs work.
     u = unitary1
-#    print('u=',u)
-    uconj = np.conjugate(u.transpose()) 
+    print('u=',u)
+    uconj = np.conjugate(u) 
     v = unitary2
-#    print('v=',v)
+    print('v=',v)
     U = np.zeros((2*len(u), 2*len(u)), dtype=np.complex_)
     V = np.zeros((2*len(v), 2*len(v)), dtype=np.complex_)
-    vconj = np.conjugate(v.transpose())
+    vconj = np.conjugate(v)
     U[:u.shape[0],:u.shape[1]]=u
     U[u.shape[0]:,u.shape[1]:]=uconj
     V[:v.shape[0],:v.shape[1]]=v
     V[v.shape[0]:,v.shape[1]:]=vconj
-#    print('U=',U)
-#    print('V=',V)
+    print('U=',U)
+    print('V=',V)
     MD = np.zeros((2*len(r), 2*len(r)), dtype=np.complex_)
     cmat = np.diag(np.cosh(r))
     smat = np.diag(np.sinh(r))
@@ -221,34 +222,38 @@ def covariance_matrix(unitary1, unitary2, r, mu):
     M_matrix = np.matmul(U, np.matmul(MD, V))
     M_conj = np.conjugate(M_matrix.transpose())
     sigma = np.matmul(M_matrix, np.matmul(T, M_conj))
-    print('sigma=',sigma)
+    #print('sigma=',sigma)
+    #print('det=',np.linalg.det(sigma))
     return sigma
 
 #########################################################################################################
 
-numberofmodes = 5
+numberofmodes = 3
 #The way this is set up currently produces a random 5-mode covariance.
 
 unitary1 = random_unitary(numberofmodes)
 unitary2 = random_unitary(numberofmodes)
-r = [0.5,0.5,0.5,0.5,0.5] #squeezing - would no squeezing be 0?
-mu = [1,1,1,1,1] #pure state
+r = [0.5,0.5,0.5] #squeezing - would no squeezing be 0?
+mu = [1,1,1] #pure state
 
 random_cov = covariance_matrix(unitary1, unitary2, r, mu)
+print(random_cov)
+np.savetxt("covariance.dat", random_cov, fmt='%f')
+np.savetxt("covariance.dat", random_cov, delimiter=',')
 
 np.set_printoptions(precision=3)
 #print(random_cov - np.conjugate(random_cov.transpose()))
 
 Omega = np.kron(np.identity(numberofmodes), [[0,1],[-1,0]])
 
-list_of_sets = list(product(list(range(2)),repeat=numberofmodes)) #It currently checks for 0,1 photons.
+list_of_sets = list(product(list(range(3)),repeat=numberofmodes)) #It currently checks for 0,1 photons.
 #You could change this by changing range(x) in the line above.
 sumofprobs = 0
 probabilities = []
 for i in range(len(list_of_sets)):
-    print(list_of_sets[i])
-    prob = click_probability(random_cov, np.zeros(2*numberofmodes), [0,1,2,3,4], list_of_sets[i])
-    sumofprobs += prob
+#    print(list_of_sets[i])
+    prob = click_probability(random_cov, np.zeros(2*numberofmodes), [0,1,2], list_of_sets[i])
+    sumofprobs += np.abs(prob)
     print(prob)
     probabilities.append(prob)
 print(sumofprobs)
