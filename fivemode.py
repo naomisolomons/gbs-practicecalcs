@@ -1,43 +1,27 @@
 import numpy as np
 import sympy as sp
-#import scipy as scp
 from itertools import product
 import copy
 import math
 import cmath
 import random as rand
-#from bristol import ensembles
 import matplotlib.pyplot as plt
-
-#User inputs
-
-covariance0 = np.zeros((10,10))
-
-displacement0 = np.zeros(10)
-#I've taken the displacement vector as an input but it doesn't actually use it
-
-#This is a set of indices
-set0 = np.zeros((5,), dtype=int)
-
-#This is the set of p_i
-numbers0 = [1,1,1,1,1]
-
-########################################
 
 x_matrix = [[0,1],[1,0]]
 
 def kappa_new(covariance, displacement, set, numbers):
+#I've taken the displacement vector as an input but it doesn't actually use it
 
-    ''' This function gives the kappa matrix with appropriate repetitions of rows and columns according to the 
-    p_i values. Inputs:
-        covariance: 2N*2N covariance matrix (array)
+    ''' This function gives the kappa matrix with appropriate repetitions of rows and columns according to the p_i values. 
+        Inputs:
+        covariance: 2N*2N covariance matrix
         displacement: displacement vector
         set: list of modes to be considered
         numbers: list of p_i values
         Outputs:
         kappa_geq_1: the kappa matrix with only the modes we are interested in, repeated an appropriate number of times
         according to the value of the p_i for that mode
-        sigma_q: the sigma_q matrix as defined in the notes
+        sigma_q: the sigma_q matrix
     '''
 
     sigma_s = np.zeros((2*len(set),2*len(set)), dtype=np.complex_)
@@ -51,14 +35,14 @@ def kappa_new(covariance, displacement, set, numbers):
             sigma_s[i][int(len(set))+j] = covariance[set[i]][int(len(covariance)/2)+set[j]]
             sigma_s[int(len(set))+i][j] = covariance[int(len(covariance)/2)+set[i]][set[j]]
 
-    #Next step is to make further matrices as defined in the notes
+    #Next step is to make some further matrices
 
-    sigma_q = sigma_s + np.identity(2*len(set))
-    print(np.linalg.det(sigma_q))
-
+    sigma_q = sigma_s + np.identity(2*len(set)) #This is the sigma_q matrix required for the Hafnian calculation
+    #This here is the important bit for constructing the matrix that we will use to find the Hafnian.
+    #Note that there is some variation in the way this is defined here with, e.g., Xanadu's method.
     kappa_s = np.matmul(np.kron(x_matrix, np.identity(len(set))),(np.identity(2*len(set)))-2*np.linalg.inv(sigma_q))
 
-    #All this next bit is how we repeat modes as is necessary based on the p_i values
+    #All this next bit is how we repeat modes as is necessary based on the p_i values. Probably not the best way to do it ¯\_(o_o)_/¯
 
     kappa_s_geq_1 = np.zeros((2*np.sum(numbers),2*np.sum(numbers)), dtype=np.complex_)
 
@@ -128,7 +112,10 @@ def Hafnian(kappa_matrix, sigma_q):
         '''For the input of a positive even integer N, the output allmus is a list of all the perfectly matching
         pairings of the list of indices 0 to N-1.'''
         #Note that this seems to be by far the slowest bit of the code! It also took the longest to write.
-        #It is clearly an inefficient method of finding the PMPs. Needs work!
+        #I think this is because this is just a slow part of the algorithm rather than the inefficiency of the code.
+        #However note that, because of this, when calculating many Hafnians it would be easier to save these then look them up.
+        #The way this program is designed is to calculate probabilities on an individual basis and is inefficient for, say, plotting graphs
+        #Although admittedly I am currently using it for that.
         if N == 0:
             allmus = []
         elif N == 2:
@@ -139,7 +126,7 @@ def Hafnian(kappa_matrix, sigma_q):
         #We call the recursive function rec_loop.
             allmus = rec_loop(listofmodes, N, [], [], endsize)
         return allmus
-    print('before')
+    print('before') #I put these print statements here to let me know when the slow bit is happening.
     set_M = makepair(len(kappa_matrix))
     print('after')
     for mu in set_M:
@@ -173,13 +160,6 @@ def covariance_2mode_squeezed(r, phi):
     s2 = np.sinh(2*r)
     return [[c2, 0, 0,cmath.rect(s2, phi)],[0,c2,cmath.rect(s2, phi),0],[0,cmath.rect(s2, -phi),c2,0],[cmath.rect(s2, -phi),0,0,c2]]
 
-#set1 = [0,1]
-#numbers1 = [1,1]
-#covariance1 = covariance_2mode_squeezed(1, math.pi/6)
-
-#print(click_probability(covariance1, displacement0, set1, numbers1))
-
-
 def random_unitary(n):
     '''This method for generating an nxn Haar random unitary matrix is taken from
     a paper by Francesco Mezzadri, who kindly includes some example code.'''
@@ -191,22 +171,26 @@ def random_unitary(n):
     return q
 
 def covariance_matrix(unitary1, unitary2, r, mu):
-    '''This is the Bloch-Messiah decomp method taken from Oli, Will and Dara's multimode paper.'''
-    #That docstring needs work.
+    '''This is the Bloch-Messiah decomp method for producing a 2n*2n covariance matrix.
+    unitary1 and unitary2 are random n*n unitary matrices.
+    r is a list of length n of the squeezing parameters.
+    mu is a list of length n of parameters to determine the purity of the state.
+    '''
     u = unitary1
-    print('u=',u)
+#    print('u=',u)
     uconj = np.conjugate(u) 
     v = unitary2
-    print('v=',v)
+#    print('v=',v)
     U = np.zeros((2*len(u), 2*len(u)), dtype=np.complex_)
     V = np.zeros((2*len(v), 2*len(v)), dtype=np.complex_)
-    vconj = np.conjugate(v)
+#    vconj = np.conjugate(v)
+    #These next lines are used to make direct sums of u and v with their conjugate matrices.
     U[:u.shape[0],:u.shape[1]]=u
     U[u.shape[0]:,u.shape[1]:]=uconj
     V[:v.shape[0],:v.shape[1]]=v
     V[v.shape[0]:,v.shape[1]:]=vconj
-    print('U=',U)
-    print('V=',V)
+#    print('U=',U)
+#    print('V=',V)
     MD = np.zeros((2*len(r), 2*len(r)), dtype=np.complex_)
     cmat = np.diag(np.cosh(r))
     smat = np.diag(np.sinh(r))
@@ -226,32 +210,28 @@ def covariance_matrix(unitary1, unitary2, r, mu):
     #print('det=',np.linalg.det(sigma))
     return sigma
 
-#########################################################################################################
+####################################################For plotting a graph#####################################################
 
 numberofmodes = 3
-#The way this is set up currently produces a random 5-mode covariance.
 
 unitary1 = random_unitary(numberofmodes)
 unitary2 = random_unitary(numberofmodes)
-r = [0.5,0.5,0.5] #squeezing - would no squeezing be 0?
-mu = [1,1,1] #pure state
+r = [0.5,0.5,0.5] #squeezing - would no squeezing be 0? Note the length of this should be number of modes.
+mu = [1,1,1] #pure state. Again this should have n entries.
 
 random_cov = covariance_matrix(unitary1, unitary2, r, mu)
 print(random_cov)
-np.savetxt("covariance.dat", random_cov, fmt='%f')
-np.savetxt("covariance.dat", random_cov, delimiter=',')
+#np.savetxt("covariance.dat", random_cov, fmt='%f')
+#np.savetxt("covariance.csv", random_cov, delimiter=',')
 
-np.set_printoptions(precision=3)
-#print(random_cov - np.conjugate(random_cov.transpose()))
+#np.set_printoptions(precision=3)
 
-Omega = np.kron(np.identity(numberofmodes), [[0,1],[-1,0]])
+list_of_sets = list(product(list(range(3)),repeat=numberofmodes)) #How many photons do you want to check for?
 
-list_of_sets = list(product(list(range(3)),repeat=numberofmodes)) #It currently checks for 0,1 photons.
-#You could change this by changing range(x) in the line above.
 sumofprobs = 0
 probabilities = []
 for i in range(len(list_of_sets)):
-#    print(list_of_sets[i])
+    print(list_of_sets[i])
     prob = click_probability(random_cov, np.zeros(2*numberofmodes), [0,1,2], list_of_sets[i])
     sumofprobs += np.abs(prob)
     print(prob)
@@ -264,6 +244,8 @@ plt.xlabel('Click pattern')
 plt.ylabel('Probability')
 plt.show()
 
+
+#################################################################Code graveyard##########################################################
 
 #This is my previous method for generating a random covariance matrix.
 
@@ -280,9 +262,3 @@ plt.show()
 #random_symp = np.matmul(np.matmul(np.linalg.matrix_power(Omega_matrix,rand4), D_matrix), N_matrix)
 #random_cov = np.matmul(random_symp, random_symp.transpose())
 #print(random_cov)
-
-
-################################TO DO LIST##############################################################
-
-#It would be good to check that everything is input correctly.
-#Maybe compare this to the Xanadu method?
