@@ -42,7 +42,7 @@ def kappa_new(covariance, displacement, set, numbers):
     #Note that there is some variation in the way this is defined here with, e.g., Xanadu's method.
     kappa_s = np.matmul(np.kron(x_matrix, np.identity(len(set))),(np.identity(2*len(set)))-2*np.linalg.inv(sigma_q))
 
-    #All this next bit is how we repeat modes as is necessary based on the p_i values. Probably not the best way to do it ¯\_(o_o)_/¯
+    #All this next bit is how we repeat modes as is necessary based on the p_i values. Probably not the best way to do it \_(o_o)_/
 
     kappa_s_geq_1 = np.zeros((2*np.sum(numbers),2*np.sum(numbers)), dtype=np.complex_)
 
@@ -183,7 +183,7 @@ def covariance_matrix(unitary1, unitary2, r, mu):
 #    print('v=',v)
     U = np.zeros((2*len(u), 2*len(u)), dtype=np.complex_)
     V = np.zeros((2*len(v), 2*len(v)), dtype=np.complex_)
-#    vconj = np.conjugate(v)
+    vconj = np.conjugate(v)
     #These next lines are used to make direct sums of u and v with their conjugate matrices.
     U[:u.shape[0],:u.shape[1]]=u
     U[u.shape[0]:,u.shape[1]:]=uconj
@@ -212,12 +212,12 @@ def covariance_matrix(unitary1, unitary2, r, mu):
 
 ####################################################For plotting a graph#####################################################
 
-numberofmodes = 3
+numberofmodes = 4
 
 unitary1 = random_unitary(numberofmodes)
 unitary2 = random_unitary(numberofmodes)
-r = [0.5,0.5,0.5] #squeezing - would no squeezing be 0? Note the length of this should be number of modes.
-mu = [1,1,1] #pure state. Again this should have n entries.
+r = [0.5,0.5,0.5,0.5] #squeezing - would no squeezing be 0? Note the length of this should be number of modes.
+mu = [1,1,1,1] #pure state. Again this should have n entries.
 
 random_cov = covariance_matrix(unitary1, unitary2, r, mu)
 print(random_cov)
@@ -232,7 +232,7 @@ sumofprobs = 0
 probabilities = []
 for i in range(len(list_of_sets)):
     print(list_of_sets[i])
-    prob = click_probability(random_cov, np.zeros(2*numberofmodes), [0,1,2], list_of_sets[i])
+    prob = click_probability(random_cov, np.zeros(2*numberofmodes), [0,1,2,3], list_of_sets[i])
     sumofprobs += np.abs(prob)
     print(prob)
     probabilities.append(prob)
