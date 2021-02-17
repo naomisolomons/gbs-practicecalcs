@@ -12,8 +12,8 @@ int doublefactorial(int n) // This is from the internet (Rahul Agrawal)
 }
 
 
-std::vector<std::vector<int>> recursiveLoop(std::vector<int> indices, int N, std::vector<int> tempmu,
-                                            std::vector<std::vector<int>> allmus, int endsize) //Not sure about use of const here
+int recursiveLoop(const std::vector<int>& indices, int N, std::vector<int>& tempmu,
+                                            std::vector<std::vector<int>>& allmus, int endsize)
 {
     if (tempmu.size() == N)
     {
@@ -38,6 +38,7 @@ std::vector<std::vector<int>> recursiveLoop(std::vector<int> indices, int N, std
     }
     else
     {
+        //std::cout << "We get here";
         std::vector<int> newlist{};
         for(int i=0; i < indices.size(); i++)
         {
@@ -52,16 +53,16 @@ std::vector<std::vector<int>> recursiveLoop(std::vector<int> indices, int N, std
             tempmu.push_back(newlist[i]);
             //for ( const auto &s : tempmu ) std::cout << s << ' ';
             //std::cout << std::endl;
-            allmus = recursiveLoop(indices, N, tempmu, allmus, endsize);
+            recursiveLoop(indices, N, tempmu, allmus, endsize);
         }
     }
-    return allmus;
+
+    return 0;
 }
 
 std::vector<std::vector<int>> perfectMatchingPairs(int N)
 {
     std::vector<std::vector<int>> allmus{};
-
 
     if (N==0)
     {
@@ -76,8 +77,8 @@ std::vector<std::vector<int>> perfectMatchingPairs(int N)
         int endsize{doublefactorial(N - 1)};
         std::vector<int> listofmodes(N);
         std::iota(listofmodes.begin(), listofmodes.end(), 0);
-        std::vector<int> tempmu{}; // tried using the 'static' prefix
-        allmus = recursiveLoop(listofmodes, N, tempmu, allmus, endsize);
+        std::vector<int> tempmu{};
+        recursiveLoop(listofmodes, N, tempmu, allmus, endsize);
     }
 
     return allmus;
@@ -90,13 +91,12 @@ int main()
     // The program is going to produce various statistics associated with Gaussian Boson Sampling.
     // The first thing I am going to do is write the function that produces the perfect matching pairs.
 
-    int numberofmodes{4};
+    int numberofmodes{18};
     std::vector<std::vector<int>> PMP{perfectMatchingPairs(numberofmodes)};
-    for ( const auto &row : PMP) //This is a method for printing 2D vectors from stackexchange
-    {
-        for ( const auto &s : row ) std::cout << s << ' ';
-        std::cout << std::endl;
-    }
-
+    //for ( const auto &row : PMP) //This is a method for printing 2D vectors from stackexchange
+    //{
+    //    for ( const auto &s : row ) std::cout << s << ' ';
+    //   std::cout << std::endl;
+    //}
     return 0;
 }
